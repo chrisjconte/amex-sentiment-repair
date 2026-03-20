@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Human Experience Repair POC — Architecture & Design</title>
+<style>
+  :root {
+    --green: #16c784;
+    --dark: #060f1a;
+    --surface: #091726;
+    --surface2: #0d2038;
+    --border: #163050;
+    --text: #ddeeff;
+    --muted: #6a8eaa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--dark);
+    background-image: radial-gradient(ellipse at 15% 40%, rgba(0,160,110,0.07) 0%, transparent 55%),
+                      radial-gradient(ellipse at 85% 15%, rgba(0,90,180,0.06) 0%, transparent 55%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .page { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  .header { background: linear-gradient(135deg, #060f1a 0%, #0a1f35 45%, #071e20 100%); border: 1px solid rgba(22,199,132,0.35); border-radius: 12px; padding: 40px; margin-bottom: 40px; position: relative; overflow: hidden; }
+  .header::before { content: ''; position: absolute; top: -60px; right: -60px; width: 380px; height: 380px; background: radial-gradient(circle, rgba(22,199,132,0.07) 0%, transparent 65%); }
+  .header::after  { content: ''; position: absolute; bottom: -80px; left: 10%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(0,100,200,0.05) 0%, transparent 65%); }
+  .header-tag { display: inline-block; background: rgba(22,199,132,0.12); border: 1px solid rgba(22,199,132,0.4); color: var(--green); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; margin-bottom: 16px; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .header .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
+  .header-meta { display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta-item { display: flex; flex-direction: column; }
+  .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .meta-value { font-size: 13px; color: var(--text); font-weight: 500; }
+
+  .section { margin-bottom: 40px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .section-num { background: var(--green); color: #000; font-weight: 800; font-size: 12px; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 0 12px rgba(22,199,132,0.4); }
+  .section-header h2 { font-size: 18px; font-weight: 600; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--green); }
+  .card p { color: var(--muted); font-size: 13px; }
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-oob { background: rgba(22,199,132,0.15); color: #16c784; border: 1px solid rgba(22,199,132,0.4); }
+  .badge-custom { background: rgba(31,111,235,0.2); color: #58a6ff; border: 1px solid #1f6feb; }
+  .badge-pro { background: rgba(210,153,34,0.2); color: #e3b341; border: 1px solid #d29922; }
+  .badge-hybrid { background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid #7c3aed; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #60b0f0; }
+
+  .alert { border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; font-size: 13px; }
+  .alert-info { background: rgba(31,111,235,0.1); border: 1px solid rgba(31,111,235,0.4); color: #80b8f0; }
+  .alert-warn { background: rgba(210,153,34,0.1); border: 1px solid #d29922; color: #e3b341; }
+  .alert-success { background: rgba(22,199,132,0.08); border: 1px solid rgba(22,199,132,0.35); color: var(--green); }
+
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 40px; }
+  .toc h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 3px 0; color: var(--green); font-size: 13px; }
+  .toc li a { color: var(--green); text-decoration: none; }
+  .toc li a:hover { text-decoration: underline; }
+
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 12px; }
+
+  /* Agentic Hub Diagram */
+  .agentic-layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; margin-bottom: 28px; align-items: start; }
+  .hub-wrap { position: relative; height: 520px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .hub-wrap::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, rgba(22,199,132,0.04) 0%, transparent 70%); pointer-events: none; }
+  .hub-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hub-node { position: absolute; transform: translate(-50%,-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; cursor: default; }
+  .hub-circle { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .hub-center .hub-circle { width: 80px; height: 80px; background: linear-gradient(135deg, #071c30, #04201a); border: 2px solid rgba(22,199,132,0.5); box-shadow: 0 0 20px rgba(22,199,132,0.18), inset 0 0 16px rgba(22,199,132,0.05); }
+  .hub-sat .hub-circle { width: 52px; height: 52px; background: var(--surface2); border: 1.5px solid var(--border); }
+  .hub-sat.sat-trigger .hub-circle { border-color: rgba(227,179,65,0.7); background: rgba(227,179,65,0.08); }
+  .hub-sat.sat-agent .hub-circle  { border-color: rgba(167,139,250,0.65); background: rgba(167,139,250,0.08); }
+  .hub-sat.sat-flow .hub-circle   { border-color: rgba(31,111,235,0.6); background: rgba(31,111,235,0.08); }
+  .hub-label { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .hub-sublabel { font-size: 9px; color: var(--muted); white-space: nowrap; }
+  .hub-center .hub-label { font-size: 13px; font-weight: 700; color: var(--green); }
+  .hub-center .hub-sublabel { font-size: 10px; color: var(--muted); }
+  .hub-tools { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-top: 3px; max-width: 140px; }
+  .hub-tool-tag { font-size: 8.5px; background: rgba(255,255,255,0.03); color: var(--muted); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); white-space: nowrap; }
+  .orch-label { position: absolute; font-size: 9px; font-weight: 600; color: rgba(88,166,255,0.45); text-transform: uppercase; letter-spacing: 1.5px; transform: translateX(-50%); }
+
+  .ann-panel { display: flex; flex-direction: column; gap: 10px; }
+  .ann-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .ann-tag { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+  .ann-why  { background: rgba(22,199,132,0.15); color: var(--green); border: 1px solid rgba(22,199,132,0.3); }
+  .ann-how  { background: rgba(31,111,235,0.15); color: #58a6ff; border: 1px solid rgba(31,111,235,0.3); }
+  .ann-who  { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+  .ann-what { background: rgba(210,153,34,0.15); color: #e3b341; border: 1px solid rgba(210,153,34,0.3); }
+  .ann-body h4 { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .ann-body p  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* Tool groups */
+  .tool-groups { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .tool-group { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid rgba(167,139,250,0.5); border-radius: 8px; padding: 16px; }
+  .tg-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: #a78bfa; }
+  .tool-pill { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(22,48,80,0.6); }
+  .tool-pill:last-child { border-bottom: none; }
+  .tool-pill-id { font-family: monospace; font-size: 10px; color: var(--muted); background: var(--surface2); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+  .tool-pill-name { font-size: 12px; font-weight: 500; color: var(--text); }
+  .tool-pill-mech { font-size: 11px; color: var(--muted); margin-left: auto; font-family: monospace; }
+
+  /* Flow diagram */
+  .flow-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 32px; margin-bottom: 24px; overflow-x: auto; }
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 600px; }
+  .flow-node { border-radius: 8px; padding: 12px 20px; font-size: 12px; font-weight: 500; text-align: center; min-width: 300px; max-width: 420px; }
+  .flow-node-trigger { background: rgba(227,179,65,0.12); border: 1px solid rgba(227,179,65,0.5); color: #e3b341; }
+  .flow-node-flow { background: rgba(31,111,235,0.12); border: 1px solid rgba(31,111,235,0.45); color: #58a6ff; }
+  .flow-node-agent { background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.5); color: #a78bfa; }
+  .flow-node-end { background: rgba(22,199,132,0.12); border: 1px solid rgba(22,199,132,0.4); color: var(--green); border-radius: 20px; }
+  .flow-node-human { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.35); color: #f85149; }
+  .flow-arrow { color: var(--muted); font-size: 18px; line-height: 1; margin: 4px 0; }
+  .flow-label { font-size: 10px; color: var(--muted); text-align: center; font-style: italic; margin: 2px 0; }
+
+  /* Step-by-step build manifest */
+  .task-phase { margin-bottom: 24px; }
+  .task-phase-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .task { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(22,48,80,0.6); align-items: flex-start; }
+  .task:last-child { border-bottom: none; }
+  .task-id { background: var(--surface2); color: var(--muted); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; white-space: nowrap; font-family: monospace; flex-shrink: 0; margin-top: 2px; }
+  .task-body { flex: 1; }
+  .task-title { font-weight: 500; font-size: 13px; margin-bottom: 3px; }
+  .task-desc { color: var(--muted); font-size: 12px; }
+  .task-status { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; margin-top: 2px; }
+  .status-done { background: rgba(22,199,132,0.15); color: var(--green); border: 1px solid rgba(22,199,132,0.3); }
+  .status-open { background: rgba(210,153,34,0.15); color: #e3b341; border: 1px solid rgba(210,153,34,0.3); }
+
+  /* Field status grid */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .field-row { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+  .field-name { font-family: monospace; font-size: 12px; color: #60b0f0; flex: 1; }
+  .field-agent { font-size: 11px; color: var(--muted); }
+  .field-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-done { background: #16c784; box-shadow: 0 0 6px rgba(22,199,132,0.5); }
+  .dot-partial { background: #e3b341; }
+  .dot-open { background: var(--border); }
+
+  /* Known issues */
+  .issue { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid #f85149; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+  .issue h4 { font-size: 13px; font-weight: 600; color: #f85149; margin-bottom: 6px; }
+  .issue p { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .issue .resolution { font-size: 12px; color: var(--green); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+
+  .sys-id { font-family: monospace; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-tag">POC Architecture Document</div>
+    <h1>Human Experience Repair</h1>
+    <div class="subtitle">ServiceNow Agentic AI — Employee Experience Recovery Workflow</div>
+    <div class="header-meta">
+      <div class="meta-item"><span class="meta-label">Customer</span><span class="meta-value">American Express — Digital Workplace</span></div>
+      <div class="meta-item"><span class="meta-label">Instance</span><span class="meta-value">demoalectriallwfzu138098</span></div>
+      <div class="meta-item"><span class="meta-label">Update Set</span><span class="meta-value">Human Experience Repair POC</span></div>
+      <div class="meta-item"><span class="meta-label">Release Required</span><span class="meta-value">Zurich / Now Assist Pro+</span></div>
+      <div class="meta-item"><span class="meta-label">Build Type</span><span class="meta-value">POC</span></div>
+      <div class="meta-item"><span class="meta-label">Date</span><span class="meta-value">2026-03-13</span></div>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#solution">Solution Overview</a></li>
+      <li><a href="#agentic">Agentic Architecture</a></li>
+      <li><a href="#flow">End-to-End Flow</a></li>
+      <li><a href="#agents">Agent & Tool Inventory</a></li>
+      <li><a href="#data">Data Model — ERC Custom Table</a></li>
+      <li><a href="#tasks">Build Task Manifest</a></li>
+      <li><a href="#status">Field Population Status</a></li>
+      <li><a href="#issues">Known Issues & Resolutions</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. SOLUTION OVERVIEW -->
+  <div class="section" id="solution">
+    <div class="section-header"><div class="section-num">1</div><h2>Solution Overview</h2></div>
+    <div class="alert alert-success">
+      <strong>Design Principle:</strong> When an incident closes with negative employee sentiment, the platform automatically creates an Experience Repair Case and triggers an agentic AI workflow. Five specialist agents analyze the employee's history, explain the sentiment drivers, and compose a personalized outreach message — all before the SDM opens the record.
+    </div>
+    <div class="card-grid-3">
+      <div class="card">
+        <h3>Detect (Flow Designer)</h3>
+        <p>A Flow Designer flow monitors incident closures. When an incident closes with a negative sentiment indicator (Negative / Very Negative), the flow automatically creates an Experience Repair Case (ERC) linked to that incident and the affected colleague.</p>
+      </div>
+      <div class="card">
+        <h3>Analyze & Enrich (Agentic AI)</h3>
+        <p>An agentic trigger fires on ERC creation. Five specialist agents run sequentially: Pattern Analyzer identifies failure patterns, Engagement Historian builds a 90-day timeline, Sentiment Explainer explains root causes, Repair Message Composer drafts the outreach, and ERC Case Summarizer writes the case summary.</p>
+      </div>
+      <div class="card">
+        <h3>Repair (SDM Action)</h3>
+        <p>The SDM opens a fully enriched ERC — all AI analysis pre-populated. They review the AI-composed repair message, personalize if needed, and click "Send Repair Message" to initiate outreach. The case moves to Pending Outreach → Outreach Sent → Resolved.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. AGENTIC ARCHITECTURE -->
+  <div class="section" id="agentic">
+    <div class="section-header"><div class="section-num">2</div><h2>Agentic Architecture</h2></div>
+    <div class="alert alert-info">
+      <strong>What makes this agentic?</strong> The workflow uses a ReActive Planner orchestration engine to dispatch five specialist agents sequentially. Each agent reads the current record state, decides which tools to call, writes results back to the ERC, and signals completion — then the orchestrator dispatches the next agent in the plan.
+    </div>
+
+    <div class="agentic-layout">
+      <!-- Hub Diagram -->
+      <div class="hub-wrap">
+        <svg class="hub-svg" viewBox="0 0 640 520" preserveAspectRatio="none">
+          <defs>
+            <marker id="arr" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <path d="M0,0 L5,2.5 L0,5 Z" fill="rgba(100,140,180,0.5)"/>
+            </marker>
+          </defs>
+          <!-- Orchestration ring -->
+          <ellipse cx="320" cy="265" rx="155" ry="150" fill="none" stroke="rgba(88,166,255,0.18)" stroke-width="1.2" stroke-dasharray="7,5"/>
+          <!-- Spokes -->
+          <line x1="320" y1="210" x2="320" y2="148" stroke="rgba(100,140,180,0.35)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr)"/>
+          <line x1="364" y1="240" x2="498" y2="168" stroke="rgba(100,140,180,0.3)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr)"/>
+          <line x1="370" y1="295" x2="498" y2="368" stroke="rgba(100,140,180,0.3)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr)"/>
+          <line x1="270" y1="295" x2="142" y2="368" stroke="rgba(100,140,180,0.3)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr)"/>
+          <line x1="276" y1="240" x2="142" y2="168" stroke="rgba(100,140,180,0.3)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr)"/>
+        </svg>
+
+        <!-- CENTER: Agentic Workflow -->
+        <div class="hub-node hub-center" style="left:50%; top:51%;">
+          <div class="hub-circle">
+            <svg width="34" height="42" viewBox="0 0 36 44" fill="none">
+              <rect x="2" y="2" width="28" height="40" rx="3" fill="rgba(22,199,132,0.07)" stroke="rgba(22,199,132,0.55)" stroke-width="1.5"/>
+              <path d="M22 2 L30 2 L30 10 L22 10 Z" fill="rgba(22,199,132,0.12)" stroke="rgba(22,199,132,0.45)" stroke-width="1"/>
+              <rect x="6" y="14" width="5" height="5" rx="1" stroke="rgba(22,199,132,0.7)" stroke-width="1.2" fill="rgba(22,199,132,0.1)"/>
+              <path d="M7 16.5 L8.5 18 L11 15" stroke="rgba(22,199,132,0.85)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="14" y1="16.5" x2="26" y2="16.5" stroke="rgba(22,199,132,0.3)" stroke-width="1.2" stroke-linecap="round"/>
+              <rect x="6" y="22" width="5" height="5" rx="1" stroke="rgba(22,199,132,0.7)" stroke-width="1.2" fill="rgba(22,199,132,0.1)"/>
+              <path d="M7 24.5 L8.5 26 L11 23" stroke="rgba(22,199,132,0.85)" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="14" y1="24.5" x2="26" y2="24.5" stroke="rgba(22,199,132,0.3)" stroke-width="1.2" stroke-linecap="round"/>
+              <rect x="6" y="30" width="5" height="5" rx="1" stroke="rgba(22,199,132,0.35)" stroke-width="1.2"/>
+              <line x1="14" y1="32.5" x2="22" y2="32.5" stroke="rgba(22,199,132,0.2)" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="hub-label">Human Experience Repair</div>
+          <div class="hub-sublabel">Agentic Workflow</div>
+        </div>
+
+        <!-- TOP: Pattern Analyzer -->
+        <div class="hub-node hub-sat sat-agent" style="left:50%; top:19%;">
+          <div class="hub-circle">🔍</div>
+          <div class="hub-label">Pattern Analyzer</div>
+          <div class="hub-sublabel">Agent 1</div>
+          <div class="hub-tools">
+            <span class="hub-tool-tag">read ERC + incident</span>
+            <span class="hub-tool-tag">write pattern</span>
+          </div>
+        </div>
+
+        <!-- TOP-RIGHT: Engagement Historian -->
+        <div class="hub-node hub-sat sat-agent" style="left:85%; top:28%;">
+          <div class="hub-circle">📋</div>
+          <div class="hub-label">Engagement Historian</div>
+          <div class="hub-sublabel">Agent 2</div>
+          <div class="hub-tools">
+            <span class="hub-tool-tag">prior cases</span>
+            <span class="hub-tool-tag">incident history</span>
+            <span class="hub-tool-tag">write timeline</span>
+          </div>
+        </div>
+
+        <!-- BOTTOM-RIGHT: Sentiment Explainer -->
+        <div class="hub-node hub-sat sat-agent" style="left:85%; top:76%;">
+          <div class="hub-circle">💬</div>
+          <div class="hub-label">Sentiment Explainer</div>
+          <div class="hub-sublabel">Agent 3</div>
+          <div class="hub-tools">
+            <span class="hub-tool-tag">analyze drivers</span>
+            <span class="hub-tool-tag">write explanation</span>
+          </div>
+        </div>
+
+        <!-- BOTTOM-LEFT: Repair Message Composer -->
+        <div class="hub-node hub-sat sat-agent" style="left:15%; top:76%;">
+          <div class="hub-circle">✉️</div>
+          <div class="hub-label">Repair Message</div>
+          <div class="hub-sublabel">Agent 4</div>
+          <div class="hub-tools">
+            <span class="hub-tool-tag">compose message</span>
+            <span class="hub-tool-tag">write to ERC</span>
+          </div>
+        </div>
+
+        <!-- TOP-LEFT: ERC Case Summarizer -->
+        <div class="hub-node hub-sat sat-agent" style="left:15%; top:28%;">
+          <div class="hub-circle">📝</div>
+          <div class="hub-label">ERC Summarizer</div>
+          <div class="hub-sublabel">Agent 5</div>
+          <div class="hub-tools">
+            <span class="hub-tool-tag">read ERC</span>
+            <span class="hub-tool-tag">write summary</span>
+          </div>
+        </div>
+
+        <div class="orch-label" style="left:50%; bottom:16px;">REACTIVE PLANNER ORCHESTRATION ENGINE</div>
+      </div>
+
+      <!-- Annotations -->
+      <div class="ann-panel">
+        <div class="ann-card">
+          <span class="ann-tag ann-why">WHY</span>
+          <div class="ann-body">
+            <h4>Business Problem</h4>
+            <p>When employees have a poor IT experience, it often goes unaddressed — the SDM never knows. This workflow ensures every negative incident close automatically triggers a structured, AI-enriched repair process before the SDM opens the record.</p>
+          </div>
+        </div>
+        <div class="ann-card">
+          <span class="ann-tag ann-how">HOW</span>
+          <div class="ann-body">
+            <h4>Orchestration Engine</h4>
+            <p>A ReActive Planner dispatches agents sequentially using a base_plan + objective_template injected at trigger time. Each agent reads state, calls tools, writes results, and signals done — the orchestrator advances to the next step.</p>
+          </div>
+        </div>
+        <div class="ann-card">
+          <span class="ann-tag ann-who">WHO</span>
+          <div class="ann-body">
+            <h4>Five Specialist Agents</h4>
+            <p>Each agent owns exactly one area of analysis: pattern detection, engagement history, sentiment explanation, message composition, and case summarization. Agents run sequentially — each builds on the output of the prior.</p>
+          </div>
+        </div>
+        <div class="ann-card">
+          <span class="ann-tag ann-what">WHAT</span>
+          <div class="ann-body">
+            <h4>Output: A Pre-Enriched Case</h4>
+            <p>By the time the SDM opens the ERC, all 7 AI fields are populated: pattern classification, sentiment drivers, engagement timeline, AI resolution plan, repair message, short description, and case description. State is Pending Outreach.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#16c784; border-radius:50%;"></div><span style="color:#16c784">Agentic Workflow</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa; border-radius:50%;"></div><span style="color:#a78bfa">Specialist Agent</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#58a6ff; border-radius:50%;"></div><span style="color:#58a6ff">Orchestration Engine</span></div>
+    </div>
+  </div>
+
+  <!-- 3. END-TO-END FLOW -->
+  <div class="section" id="flow">
+    <div class="section-header"><div class="section-num">3</div><h2>End-to-End Flow</h2></div>
+    <div class="flow-container">
+      <div class="flow">
+        <div class="flow-node flow-node-trigger">🎯 Incident closes with Negative / Very Negative sentiment</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-flow">⚙️ Flow Designer: "Create Experience Repair Case on Negative Incident Close"<br><small>Creates ERC record (state = New) linked to incident + affected user</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-trigger">🔔 Agentic Trigger: "Enrich New ERC"<br><small>Fires on insert to u_x_amex_exp_repair_case where state = 1</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-agent">🔍 Agent 1: Pattern Analyzer<br><small>Reads ERC + source incident → writes u_pattern_classification, u_sentiment_drivers</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-agent">📋 Agent 2: Engagement Historian<br><small>Queries 90-day incident history + prior ERC cases → writes u_engagement_timeline</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-agent">💬 Agent 3: Sentiment Explainer<br><small>Synthesizes drivers + pattern → writes ai_resolution_plan (sentiment explanation)</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-agent">✉️ Agent 4: Repair Message Composer<br><small>Composes personalized outreach → writes u_repair_message</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-agent">📝 Agent 5: ERC Case Summarizer<br><small>Synthesizes all AI data → writes short_description + description → sets state = Pending Outreach</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-human">👤 SDM opens fully enriched ERC — reviews AI output, personalizes if needed</div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-flow">📤 UI Action: "Send Repair Message"<br><small>Sends u_repair_message to affected colleague, logs outreach date, advances state</small></div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-end">✅ Case → Outreach Sent → Follow Up → Resolved</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. AGENT & TOOL INVENTORY -->
+  <div class="section" id="agents">
+    <div class="section-header"><div class="section-num">4</div><h2>Agent &amp; Tool Inventory</h2></div>
+
+    <div class="table-wrap" style="margin-bottom:20px;">
+      <table>
+        <thead>
+          <tr><th>Agent</th><th>sys_id</th><th>Strategy</th><th>Role</th><th>Tools</th><th>Output Field(s)</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Pattern Analyzer</strong></td>
+            <td><span class="sys-id">06bcb6122febba106dc4a04fafa4e3b6</span></td>
+            <td>ReAct</td>
+            <td>IT experience analyst. Identifies failure patterns in closed incidents.</td>
+            <td>Read ERC + Source Incident · Look up similar cases · Write pattern analysis</td>
+            <td><span class="mono">u_pattern_classification</span><br><span class="mono">u_sentiment_drivers</span></td>
+          </tr>
+          <tr>
+            <td><strong>Engagement Historian</strong></td>
+            <td><span class="sys-id">375c83da2f27fa106dc4a04fafa4e386</span></td>
+            <td>ReAct</td>
+            <td>Employee experience analyst. Reviews 90-day IT incident history and prior repair cases.</td>
+            <td>Look up prior repair cases · Look up employee incidents · Write engagement summary</td>
+            <td><span class="mono">u_engagement_timeline</span></td>
+          </tr>
+          <tr>
+            <td><strong>Sentiment Explainer</strong></td>
+            <td><span class="sys-id">cf9297522f2bfa106dc4a04fafa4e3fb</span></td>
+            <td>ReAct</td>
+            <td>Sentiment analyst. Synthesizes pattern data and engagement history into a clear explanation of why the employee had a negative experience.</td>
+            <td>Analyze sentiment drivers · Write sentiment explanation to case</td>
+            <td><span class="mono">ai_resolution_plan</span></td>
+          </tr>
+          <tr>
+            <td><strong>Repair Message Composer</strong></td>
+            <td><span class="sys-id">552e30ee93633e50b699f8613603d6dc</span></td>
+            <td>ReAct</td>
+            <td>Communication specialist. Composes a personalized outreach message from the SDM to the affected colleague, based on all prior analysis.</td>
+            <td>Read ERC for message context · Read source incident · Compose and write repair message</td>
+            <td><span class="mono">u_repair_message</span></td>
+          </tr>
+          <tr>
+            <td><strong>ERC Case Summarizer</strong></td>
+            <td><span class="sys-id">4ec4f12493f77294b699f8613603d6aa</span></td>
+            <td>ReAct</td>
+            <td>Case manager. Synthesizes all AI-enriched fields into the ERC's title and description, making the case self-documenting for the SDM.</td>
+            <td>Read ERC case for summary · Read source incident for context · Write AI summary to ERC case</td>
+            <td><span class="mono">short_description</span><br><span class="mono">description</span><br><span class="mono">state → 3</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:10px;">Tool Detail by Agent</div>
+    <div class="tool-groups">
+      <div class="tool-group">
+        <div class="tg-header">🔍 Pattern Analyzer</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-01</span><span class="tool-pill-name">Read ERC + Source Incident</span><span class="tool-pill-mech">GlideRecord · dual read</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-02</span><span class="tool-pill-name">Look up similar cases</span><span class="tool-pill-mech">query u_x_amex_exp_repair_case</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-03</span><span class="tool-pill-name">Write pattern analysis</span><span class="tool-pill-mech">update ERC · 2 fields</span></div>
+      </div>
+      <div class="tool-group">
+        <div class="tg-header">📋 Engagement Historian</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-04</span><span class="tool-pill-name">Look up prior repair cases</span><span class="tool-pill-mech">query ERC by user · 90 day</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-05</span><span class="tool-pill-name">Look up employee incidents</span><span class="tool-pill-mech">query incident by caller</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-06</span><span class="tool-pill-name">Write engagement summary</span><span class="tool-pill-mech">update u_engagement_timeline</span></div>
+      </div>
+      <div class="tool-group">
+        <div class="tg-header">💬 Sentiment Explainer</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-07</span><span class="tool-pill-name">Analyze sentiment drivers</span><span class="tool-pill-mech">read ERC fields</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-08</span><span class="tool-pill-name">Write explanation to case</span><span class="tool-pill-mech">update ai_resolution_plan</span></div>
+      </div>
+      <div class="tool-group">
+        <div class="tg-header">✉️ Repair Message Composer</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-09</span><span class="tool-pill-name">Read ERC for message context</span><span class="tool-pill-mech">GlideRecord · ERC</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-10</span><span class="tool-pill-name">Read source incident</span><span class="tool-pill-mech">GlideRecord · incident</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-11</span><span class="tool-pill-name">Compose &amp; write repair message</span><span class="tool-pill-mech">update u_repair_message</span></div>
+      </div>
+      <div class="tool-group">
+        <div class="tg-header">📝 ERC Case Summarizer</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-12</span><span class="tool-pill-name">Read ERC case for summary</span><span class="tool-pill-mech">GlideRecord · all AI fields</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-13</span><span class="tool-pill-name">Read source incident</span><span class="tool-pill-mech">GlideRecord · incident</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-14</span><span class="tool-pill-name">Write AI summary to ERC</span><span class="tool-pill-mech">short_description + description + state=3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. DATA MODEL -->
+  <div class="section" id="data">
+    <div class="section-header"><div class="section-num">5</div><h2>Data Model — ERC Custom Table</h2></div>
+    <div class="alert alert-info">
+      Table: <span class="mono">u_x_amex_exp_repair_case</span> — extends Task. Number prefix: <strong>ERC</strong>. All AI output fields are custom fields added to this table.
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Field</th><th>Label</th><th>Type</th><th>Written By</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="mono">u_source_incident</span></td><td>Source Incident</td><td>Reference (incident)</td><td>Flow Designer</td><td>The triggering incident</td></tr>
+          <tr><td><span class="mono">u_affected_user</span></td><td>Affected Colleague</td><td>Reference (sys_user)</td><td>Flow Designer</td><td>The employee who had the negative experience</td></tr>
+          <tr><td><span class="mono">u_original_incident_category</span></td><td>Category</td><td>String</td><td>Flow Designer</td><td>Incident category carried over from source</td></tr>
+          <tr><td><span class="mono">u_sentiment_indicator</span></td><td>Sentiment Indicator</td><td>Choice (1=Negative, 2=Very Negative)</td><td>Flow Designer</td><td>Source sentiment signal</td></tr>
+          <tr><td><span class="mono">u_sdm</span></td><td>SDM</td><td>Reference (sys_user)</td><td>Flow Designer / Manual</td><td>Assigned Service Delivery Manager</td></tr>
+          <tr><td><span class="mono">u_pattern_classification</span></td><td>Pattern Classification</td><td>String</td><td>Agent 1</td><td>"isolated" or "recurring"</td></tr>
+          <tr><td><span class="mono">u_sentiment_drivers</span></td><td>Sentiment Drivers</td><td>String (CSV)</td><td>Agent 1</td><td>e.g. "resolution time, reassignment count"</td></tr>
+          <tr><td><span class="mono">u_engagement_timeline</span></td><td>Engagement Timeline</td><td>String (long)</td><td>Agent 2</td><td>90-day history of incidents + prior repair cases</td></tr>
+          <tr><td><span class="mono">ai_resolution_plan</span></td><td>AI Resolution Plan</td><td>String (long)</td><td>Agent 3</td><td>Structured explanation of sentiment root causes</td></tr>
+          <tr><td><span class="mono">u_repair_message</span></td><td>Repair Message</td><td>String (long)</td><td>Agent 4</td><td>Personalized outreach message from SDM to employee</td></tr>
+          <tr><td><span class="mono">short_description</span></td><td>Short Description</td><td>String</td><td>Agent 5</td><td>Auto-generated case title (User — Sentiment — Category)</td></tr>
+          <tr><td><span class="mono">description</span></td><td>Description</td><td>String (long)</td><td>Agent 5</td><td>Full AI case narrative for SDM context</td></tr>
+          <tr><td><span class="mono">state</span></td><td>State</td><td>Integer (1=New, 2=Enriched, 3=Pending Outreach, 4=Outreach Sent, 7=Resolved)</td><td>Agents / SDM</td><td>Lifecycle progression</td></tr>
+          <tr><td><span class="mono">u_outreach_sent_date</span></td><td>Outreach Sent Date</td><td>DateTime</td><td>UI Action</td><td>Stamped when SDM sends repair message</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 6. BUILD TASK MANIFEST -->
+  <div class="section" id="tasks">
+    <div class="section-header"><div class="section-num">6</div><h2>Build Task Manifest</h2></div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Core Agentic Infrastructure</div>
+      <div class="task">
+        <div class="task-id">T001</div>
+        <div class="task-body">
+          <div class="task-title">Agentic Workflow — Human Experience Repair</div>
+          <div class="task-desc">sn_aia_usecase · sys_id: e10c7ad62fabba106dc4a04fafa4e345 · execution_mode: autopilot · team with 5 agents</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T002</div>
+        <div class="task-body">
+          <div class="task-title">Agent 1 — Pattern Analyzer (3 tools)</div>
+          <div class="task-desc">sn_aia_agent · sys_id: 06bcb6122febba106dc4a04fafa4e3b6 · reads ERC + incident, writes u_pattern_classification + u_sentiment_drivers</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T003</div>
+        <div class="task-body">
+          <div class="task-title">Agent 2 — Engagement Historian (3 tools)</div>
+          <div class="task-desc">sn_aia_agent · sys_id: 375c83da2f27fa106dc4a04fafa4e386 · queries 90-day history, writes u_engagement_timeline</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T004</div>
+        <div class="task-body">
+          <div class="task-title">Agent 3 — Sentiment Explainer (3 tools)</div>
+          <div class="task-desc">sn_aia_agent · sys_id: cf9297522f2bfa106dc4a04fafa4e3fb · synthesizes drivers, writes ai_resolution_plan</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T005</div>
+        <div class="task-body">
+          <div class="task-title">Agent 4 — Repair Message Composer (3 tools)</div>
+          <div class="task-desc">sn_aia_agent · sys_id: 552e30ee93633e50b699f8613603d6dc · composes outreach, writes u_repair_message</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T012</div>
+        <div class="task-body">
+          <div class="task-title">Agent 5 — ERC Case Summarizer (3 tools)</div>
+          <div class="task-desc">sn_aia_agent · sys_id: 4ec4f12493f77294b699f8613603d6aa · reads all AI fields, writes short_description + description, sets state=3</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T006</div>
+        <div class="task-body">
+          <div class="task-title">Agentic Trigger — Enrich New ERC</div>
+          <div class="task-desc">sn_aia_trigger_configuration · sys_id: 2ce4c6642f37be146dc4a04fafa4e360 · record_create on u_x_amex_exp_repair_case, condition: state=1</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+    </div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Flow Designer & UI</div>
+      <div class="task">
+        <div class="task-id">T007</div>
+        <div class="task-body">
+          <div class="task-title">Flow — Create Experience Repair Case on Negative Incident Close</div>
+          <div class="task-desc">sys_hub_flow · Active/Published · trigger: incident state→7 + negative sentiment · Action 1: Create ERC record</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T008</div>
+        <div class="task-body">
+          <div class="task-title">UI Action — Send Repair Message</div>
+          <div class="task-desc">sys_ui_action on u_x_amex_exp_repair_case · sends u_repair_message to affected colleague, stamps u_outreach_sent_date, advances state</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+    </div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Demo Data & Navigation</div>
+      <div class="task">
+        <div class="task-id">T009</div>
+        <div class="task-body">
+          <div class="task-title">12 demo ERC records (ERC0001014–ERC0001025)</div>
+          <div class="task-desc">Raw input fields populated (source incident, affected user, category, sentiment) · AI output fields empty — intended for live agentic demo</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T010</div>
+        <div class="task-body">
+          <div class="task-title">Module navigation — Experience Repair Cases</div>
+          <div class="task-desc">sys_app_module · sys_id: 547a69e693af7e50b699f8613603d67d · link_type=LIST, table=u_x_amex_exp_repair_case</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+      <div class="task">
+        <div class="task-id">T011</div>
+        <div class="task-body">
+          <div class="task-title">List view columns configured</div>
+          <div class="task-desc">sys_ui_list · Number, Source Incident, Affected Colleague, Category, Sentiment Indicator, Priority, State, Created</div>
+        </div>
+        <div class="task-status status-done">DONE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. FIELD POPULATION STATUS -->
+  <div class="section" id="status">
+    <div class="section-header"><div class="section-num">7</div><h2>Field Population Status</h2></div>
+    <div class="alert alert-info">
+      Status reflects end-to-end autonomous run. All 5 agents must complete without Human-In-The-Loop interruption for all fields to populate.
+    </div>
+
+    <div class="field-grid">
+      <div class="field-row">
+        <div class="field-dot dot-done"></div>
+        <div class="field-name">u_pattern_classification</div>
+        <div class="field-agent">Agent 1</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-done"></div>
+        <div class="field-name">u_sentiment_drivers</div>
+        <div class="field-agent">Agent 1</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-done"></div>
+        <div class="field-name">u_engagement_timeline</div>
+        <div class="field-agent">Agent 2</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-open"></div>
+        <div class="field-name">ai_resolution_plan</div>
+        <div class="field-agent">Agent 3</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-open"></div>
+        <div class="field-name">u_repair_message</div>
+        <div class="field-agent">Agent 4</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-open"></div>
+        <div class="field-name">short_description</div>
+        <div class="field-agent">Agent 5</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-open"></div>
+        <div class="field-name">description</div>
+        <div class="field-agent">Agent 5</div>
+      </div>
+      <div class="field-row">
+        <div class="field-dot dot-open"></div>
+        <div class="field-name">state = 3 (Pending Outreach)</div>
+        <div class="field-agent">Agent 5</div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#16c784; border-radius:50%;"></div><span style="color:#16c784">Verified working in autonomous run</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e3b341; border-radius:50%;"></div><span style="color:#e3b341">Works with manual approval</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#163050; border-radius:50%;"></div><span style="color:var(--muted)">Pending full autonomous validation</span></div>
+    </div>
+  </div>
+
+  <!-- 8. KNOWN ISSUES -->
+  <div class="section" id="issues">
+    <div class="section-header"><div class="section-num">8</div><h2>Known Issues &amp; Resolutions</h2></div>
+
+    <div class="issue">
+      <h4>HITL Confirmation Dialog — Agent 4 (Repair Message Composer)</h4>
+      <p><strong>Symptom:</strong> Agent 4 pauses and asks "Is it okay to proceed with composing a message?" before writing u_repair_message. Requires human click to continue.</p>
+      <p><strong>Root Cause:</strong> ReAct strategy enforces Human-In-The-Loop for any tool call it classifies as "composing communication to a person." This is platform-level behavior in the sn_aia_strategy engine — not controllable via agent instructions, role description, or tool description changes.</p>
+      <div class="resolution">Resolution approach: Merge Agent 4's work into Agent 3's tool (single tool writes all remaining fields). Reduces to 3-agent plan. Eliminates the HITL step by removing the "composing communication" classification from any agent invocation. Under active testing.</div>
+    </div>
+
+    <div class="issue">
+      <h4>Agent 5 (ERC Case Summarizer) Never Dispatched</h4>
+      <p><strong>Symptom:</strong> After Agents 1–4 complete, the orchestrator terminates the session without dispatching Agent 5. short_description and description remain empty.</p>
+      <p><strong>Root Cause:</strong> ReActive Planner creates its execution plan at session start from base_plan + objective_template. Prior base_plan wording used "Enriched" as a terminal state label (matching the workflow name), causing the planner to treat Agent 4 completion as session end.</p>
+      <div class="resolution">Resolution: Updated base_plan to explicit 3-step plan (or 5-step with unambiguous terminal condition: state=3). Removed "Enriched" language from step labels. objective_template updated with explicit case_sys_id in each step.</div>
+    </div>
+
+    <div class="issue">
+      <h4>Agent 2 — case_sys_id Missing Error</h4>
+      <p><strong>Symptom:</strong> Agent 2 (Engagement Historian) failed with "build a 90-day engagement history failed because case_sys_id was missing" despite Agent 1 succeeding.</p>
+      <p><strong>Root Cause:</strong> objective_template only explicitly stated <span class="mono">case_sys_id = ${sys_id}</span> in Step 3. Agent 2's tools require case_sys_id as mandatory input. The LLM could not reliably extract the sys_id from the header-level mention for Step 2.</p>
+      <div class="resolution">Resolution: Added <span class="mono">(case_sys_id = ${sys_id})</span> explicitly to Steps 1 and 2 in objective_template. Verified: Agent 2 now writes u_engagement_timeline successfully.</div>
+    </div>
+
+    <div class="issue">
+      <h4>Trigger Deduplication — Trigger Doesn't Fire for Same Source Incident</h4>
+      <p><strong>Symptom:</strong> Creating a new ERC with the same source incident as an existing open ERC doesn't trigger the agentic workflow.</p>
+      <p><strong>Root Cause:</strong> Platform-level deduplication in sn_aia_trigger_configuration prevents firing a new session when an active session for the same record already exists.</p>
+      <div class="resolution">Workaround: Use a different source incident for each test ERC. Ensure prior test ERCs are closed or moved to a terminal state before re-testing.</div>
+    </div>
+
+    <div class="issue">
+      <h4>Playwright Browser Conflict</h4>
+      <p><strong>Symptom:</strong> Playwright MCP cannot launch a controlled Chrome instance when Chrome is already running as a regular session. Error: "Opening in existing browser session."</p>
+      <p><strong>Root Cause:</strong> Chrome must be fully quit (⌘Q, not just window closed) for Playwright to launch a controlled instance.</p>
+      <div class="resolution">Workaround: Quit Chrome completely before running Playwright-based browser automation. Use Force Quit (⌘⌥⎋) if needed.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Human Experience Repair POC &nbsp;·&nbsp; demoalectriallwfzu138098 &nbsp;·&nbsp; American Express Digital Workplace &nbsp;·&nbsp; Built with JARVIS v11
+  </div>
+
+</div>
+</body>
+</html>
